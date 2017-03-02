@@ -108,13 +108,13 @@ items:
           terminationMessagePath: /dev/termination-log
           readinessProbe:
             timeoutSeconds: 5
-            initialDelaySeconds: 5
+            initialDelaySeconds: 20
             httpGet:
               path: "/"
               port: 9200
           livenessProbe:
             timeoutSeconds: 5
-            initialDelaySeconds: 5
+            initialDelaySeconds: 20
             httpGet:
               path: "/"
               port: 9200
