@@ -1,0 +1,194 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: hawkular-apm-template
+message: 'A Hawkular APM service has been created in your project. You can login as ''${HAWKULAR_APM_ADMIN_USERNAME}'' with the password ''${HAWKULAR_APM_ADMIN_PASSWORD}'' '
+metadata:
+  annotations:
+    description: Hawkular APM Server service.
+    iconClass: icon-wildfly
+    openshift.io/display-name: Hawkular APM Server
+    tags: instant-app,hawkular,apm,opentracing
+  name: hawkular-apm
+objects:
+- apiVersion: v1
+  kind: Route
+  metadata:
+    creationTimestamp: null
+    name: ${HAWKULAR_APM_SERVICE_NAME}
+  spec:
+    tls:
+      insecureEdgeTerminationPolicy: Allow
+      termination: edge
+    to:
+      kind: Service
+      name: ${HAWKULAR_APM_SERVICE_NAME}
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    creationTimestamp: null
+    name: ${HAWKULAR_APM_SERVICE_NAME}
+  spec:
+    replicas: 1
+    selector:
+      name: ${HAWKULAR_APM_SERVICE_NAME}
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: ${HAWKULAR_APM_SERVICE_NAME}
+      spec:
+        containers:
+        - capabilities: {}
+          env:
+          - name: HAWKULAR_APM_ADMIN_USERNAME
+            value: ${HAWKULAR_APM_ADMIN_USERNAME}
+          - name: HAWKULAR_APM_ADMIN_PASSWORD
+            value: ${HAWKULAR_APM_ADMIN_PASSWORD}
+          - name: HAWKULAR_APM_ELASTICSEARCH_HOSTS
+            value: ${HAWKULAR_APM_SERVICE_NAME}-es:9300
+          - name: HAWKULAR_APM_ELASTICSEARCH_CLUSTER
+            value: ${HAWKULAR_APM_SERVICE_NAME}-es-cluster
+          image: jboss/hawkular-apm-server
+          imagePullPolicy: IfNotPresent
+          name: ${HAWKULAR_APM_SERVICE_NAME}
+          securityContext:
+            capabilities: {}
+            privileged: false
+          terminationMessagePath: /dev/termination-log
+          readinessProbe:
+            timeoutSeconds: 10
+            initialDelaySeconds: 40
+            httpGet:
+              path: "/hawkular/apm/status"
+              port: 8080
+          livenessProbe:
+            timeoutSeconds: 10
+            initialDelaySeconds: 40
+            httpGet:
+              path: "/hawkular/apm/status"
+              port: 8080
+          resources:
+            requests:
+              memory: 1024Mi
+              cpu: 2000m
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        serviceAccountName: ${HAWKULAR_APM_SERVICE_NAME}
+    triggers:
+    - type: ConfigChange
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    creationTimestamp: null
+    name: ${HAWKULAR_APM_SERVICE_NAME}-es
+  spec:
+    replicas: 1
+    selector:
+      name: ${HAWKULAR_APM_SERVICE_NAME}-es
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: ${HAWKULAR_APM_SERVICE_NAME}-es
+      spec:
+        containers:
+        - capabilities: {}
+          env:
+          - name: CLUSTER_NAME
+            value: ${HAWKULAR_APM_SERVICE_NAME}-es-cluster
+          image: jpkroehling/elasticsearch
+          imagePullPolicy: IfNotPresent
+          name: ${HAWKULAR_APM_SERVICE_NAME}-es
+          terminationMessagePath: /dev/termination-log
+          readinessProbe:
+            timeoutSeconds: 5
+            initialDelaySeconds: 5
+            httpGet:
+              path: "/"
+              port: 9200
+          livenessProbe:
+            timeoutSeconds: 5
+            initialDelaySeconds: 5
+            httpGet:
+              path: "/"
+              port: 9200
+          resources:
+            requests:
+              memory: 256Mi
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        serviceAccountName: ${HAWKULAR_APM_SERVICE_NAME}-es
+    triggers:
+    - type: ConfigChange
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    annotations:
+      serviceaccounts.openshift.io/oauth-redirectreference.hawkular-apm: '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"${HAWKULAR_APM_SERVICE_NAME}"}}'
+    name: ${HAWKULAR_APM_SERVICE_NAME}
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: ${HAWKULAR_APM_SERVICE_NAME}-es
+    annotations:
+      serviceaccounts.openshift.io/oauth-redirectreference.hawkular-apm-es: '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"${HAWKULAR_APM_SERVICE_NAME}-es"}}'
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    name: ${HAWKULAR_APM_SERVICE_NAME}
+    annotations:
+      service.alpha.openshift.io/dependencies: '[{"name":"${HAWKULAR_APM_SERVICE_NAME}-es","namespace":"","kind":"Service"}]'
+  spec:
+    ports:
+    - name: web
+      nodePort: 0
+      port: 80
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      name: ${HAWKULAR_APM_SERVICE_NAME}
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: ${HAWKULAR_APM_SERVICE_NAME}-es
+    creationTimestamp: null
+    name: ${HAWKULAR_APM_SERVICE_NAME}-es
+  spec:
+    ports:
+    - name: rest-api
+      port: 9200
+      protocol: TCP
+      targetPort: 9200
+    - name: native
+      port: 9300
+      protocol: TCP
+      targetPort: 9300
+    selector:
+      name: ${HAWKULAR_APM_SERVICE_NAME}-es
+    sessionAffinity: None
+    type: ClusterIP
+parameters:
+- description: The name of the Hawkular APM Service.
+  displayName: Hawkular APM Service Name
+  name: HAWKULAR_APM_SERVICE_NAME
+  required: true
+  value: hawkular-apm
+- description: The username for the user with administrative privileges.
+  displayName: Administrator's username
+  name: HAWKULAR_APM_ADMIN_USERNAME
+  required: true
+  value: admin
+- description: The password for the user with administrative privileges.
+  displayName: Administrator's password
+  from: '[a-zA-Z0-9]{23}'
+  generate: expression
+  name: HAWKULAR_APM_ADMIN_PASSWORD
