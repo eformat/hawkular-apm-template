@@ -70,7 +70,7 @@ items:
           resources:
             requests:
               memory: 1024Mi
-              cpu: 2000m
+              cpu: 1000m
         dnsPolicy: ClusterFirst
         restartPolicy: Always
         volumes:
