@@ -1,6 +1,6 @@
 FROM redhat-openjdk-18/openjdk18-openshift:latest
 
-ENV APM_VERSION=0.13.0.Final
+ENV APM_VERSION=0.14.4.Final
 ENV APM_AGENT=/libs/hawkular-apm-agent.jar
 
 ADD https://repository.jboss.org/nexus/service/local/artifact/maven/redirect?r=releases&g=org.hawkular.apm&a=hawkular-apm-agent&v=$APM_VERSION&e=jar $APM_AGENT
